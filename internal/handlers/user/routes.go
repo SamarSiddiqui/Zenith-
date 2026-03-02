@@ -1,6 +1,8 @@
 package user
 
 import (
+	"habit-tracker/internal/middleware"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -10,5 +12,13 @@ func SetupUserRoutes(router *gin.Engine) {
 	{
 		userGroup.POST("/signup", Signup)
 		userGroup.POST("/login", Login)
+
+		// Protected routes
+		protected := userGroup.Group("/")
+		protected.Use(middleware.AuthMiddleware())
+		{
+			protected.GET("/profile", GetProfile)
+			protected.PATCH("/profile", PatchProfile)
+		}
 	}
 }

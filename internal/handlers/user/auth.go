@@ -19,12 +19,12 @@ import (
 func Signup(c *gin.Context) {
 	var req models.SignupRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload"})
+		utils.ErrorResponse(c, http.StatusBadRequest, "Invalid request payload", err)
 		return
 	}
 
 	if req.Email == "" || req.Password == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Email and password are required"})
+		utils.ErrorResponse(c, http.StatusBadRequest, "Email and password are required", nil)
 		return
 	}
 
@@ -36,27 +36,25 @@ func Signup(c *gin.Context) {
 	var existingUser models.User
 	err := collection.FindOne(ctx, bson.M{"email": req.Email}).Decode(&existingUser)
 	if err == nil {
-		c.JSON(http.StatusConflict, gin.H{"error": "Email already in use"})
+		utils.ErrorResponse(c, http.StatusConflict, "Email already in use", nil)
 		return
 	} else if err != mongo.ErrNoDocuments {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+		utils.ErrorResponse(c, http.StatusInternalServerError, "Database error", err)
 		return
 	}
 
-	// Hash password
 	hashedPassword, err := utils.HashPassword(req.Password)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to encrypt password"})
+		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to encrypt password", err)
 		return
 	}
 
 	// Create arbitrary ObjectID
 	userID := primitive.NewObjectID()
 
-	// Generate JWT Token
 	token, err := utils.GenerateToken(userID.Hex())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
+		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to generate token", err)
 		return
 	}
 
@@ -72,7 +70,7 @@ func Signup(c *gin.Context) {
 
 	_, err = collection.InsertOne(ctx, newUser)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
+		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to create user", err)
 		return
 	}
 
@@ -89,12 +87,12 @@ func Signup(c *gin.Context) {
 func Login(c *gin.Context) {
 	var req models.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload"})
+		utils.ErrorResponse(c, http.StatusBadRequest, "Invalid request payload", err)
 		return
 	}
 
 	if req.Email == "" || req.Password == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Email and password are required"})
+		utils.ErrorResponse(c, http.StatusBadRequest, "Email and password are required", nil)
 		return
 	}
 
@@ -102,28 +100,27 @@ func Login(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Find user by email
 	var user models.User
 	err := collection.FindOne(ctx, bson.M{"email": req.Email}).Decode(&user)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
+			utils.ErrorResponse(c, http.StatusUnauthorized, "Invalid email or password", nil)
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+		utils.ErrorResponse(c, http.StatusInternalServerError, "Database error", err)
 		return
 	}
 
 	// Check password
 	if !utils.CheckPasswordHash(req.Password, user.Password) {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
+		utils.ErrorResponse(c, http.StatusUnauthorized, "Invalid email or password", nil)
 		return
 	}
 
 	// Generate new JWT Token upon login
 	token, err := utils.GenerateToken(user.ID.Hex())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
+		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to generate token", err)
 		return
 	}
 
@@ -137,7 +134,7 @@ func Login(c *gin.Context) {
 		}},
 	)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update access token in db"})
+		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to update access token in db", err)
 		return
 	}
 
